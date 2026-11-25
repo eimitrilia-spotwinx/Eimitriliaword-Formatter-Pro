@@ -390,3 +390,33 @@ gh release create "v<版本>" "release\...zip" --title "v<版本>" --notes-file 
 5. `git tag -a v<版本> -m "..."` → 再 push 标签
 6. 打 zip → `gh release create`（见 10.3）
 7. 打开仓库页面确认：文件树、README 渲染、Release 资产可下载
+
+### 10.6 GitHub 界面速查（官方无中文界面）
+
+GitHub 主站**没有语言切换选项**（设置里也没有），界面固定英文。三种应对方式：
+
+| 方式 | 效果 | 代价 |
+|---|---|---|
+| **浏览器翻译**（Edge/Chrome 地址栏翻译图标 → 选中文 → 勾「始终翻译此站点」） | 整站中文，最快 | 机器翻译，术语略别扭（`Repository`→「存储库」、`Pull request`→「拉取请求」） |
+| 油猴脚本 `github-chinese` | 汉化更地道 | 需装 Tampermonkey，依赖脚本维护 |
+| **记常用位置**（推荐） | 不需要任何插件 | 只需记住十来个词 |
+
+常用按钮对照：
+
+| 英文 | 含义 | 用途 |
+|---|---|---|
+| **Code** | 代码 | 看文件、下载源码 zip |
+| **Releases** | 发布版本 | **下载 exe 的地方** |
+| **Issues** | 问题反馈 | 提 bug |
+| **Pull requests** | 合并请求 | 接受外部贡献 |
+| **Settings** | 设置 | 改仓库名、管理密钥 |
+| **Deploy keys** | 部署密钥 | 本项目的 SSH 推送密钥在 `Settings → Deploy keys` |
+| **Actions** | 自动构建 | 本项目未启用 |
+| **Star / Fork** | 收藏 / 复制到自己账号 | 外部用户操作 |
+
+**本仓库日常只需两处**：
+
+1. `Releases` → 发新版、看下载统计
+2. `Settings → Deploy keys` → 管理 SSH 推送密钥（撤销/轮换）
+
+GitHub 文档站**有中文**：`https://docs.github.com/zh`（查 API、查操作说明用这里）。
