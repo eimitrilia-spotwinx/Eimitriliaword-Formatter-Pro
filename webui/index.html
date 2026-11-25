@@ -1,0 +1,1566 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eimitriliaword Formatter Pro</title>
+<script>
+/* 主题：在渲染前套用，避免闪白 */
+(function(){
+  try{
+    var saved = localStorage.getItem('wfp.theme') || 'auto';
+    var sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme-mode', saved);
+    document.documentElement.setAttribute('data-theme', saved === 'auto' ? sys : saved);
+  }catch(e){}
+})();
+</script>
+<style>
+  :root{
+    --bg:#f7f7f8; --panel:#fff; --ink:#16181d; --muted:#6b7280;
+    --line:#e5e7eb; --line-strong:#d1d5db;
+    --accent:#2f6bff; --accent-soft:#eef3ff;
+    --ok:#0f9d58; --err:#d93025;
+    --radius:12px; --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);height:100vh;display:flex;flex-direction:column;
+    font:14px/1.55 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:13px 22px;background:var(--panel);
+    border-bottom:1px solid var(--line)}
+  .logo{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#2f6bff,#7aa2ff);
+    display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px}
+  header h1{font-size:15px;margin:0;font-weight:600}
+  header .ver{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+  header .spacer{flex:1}
+  .status{font-size:12px;color:var(--muted)}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#c7ccd4;margin-right:6px;vertical-align:1px}
+  .dot.on{background:var(--ok)}
+
+  main{flex:1;display:grid;grid-template-columns:minmax(360px,1fr) 14px var(--rightw,400px);gap:0;padding:16px 22px;min-height:0}
+  .splitter{position:relative;cursor:col-resize;align-self:stretch}
+  .splitter::before{content:"";position:absolute;top:12px;bottom:12px;left:50%;width:4px;margin-left:-2px;
+    border-radius:99px;background:var(--line);transition:background .15s}
+  .splitter:hover::before,.splitter.dragging::before{background:var(--accent)}
+  .splitter-h{position:relative;height:14px;flex:0 0 auto;cursor:row-resize;margin:-2px 0}
+  .splitter-h::before{content:"";position:absolute;left:50%;transform:translateX(-50%);top:50%;
+    height:3px;width:46px;margin-top:-1.5px;border-radius:99px;background:var(--line);transition:background .15s}
+  .splitter-h:hover::before,.splitter-h.dragging::before{background:var(--accent)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .card h2{font-size:13px;margin:0;padding:12px 16px;border-bottom:1px solid var(--line);font-weight:600;
+    color:#374151;display:flex;align-items:center;gap:8px}
+  .card h2 .cnt{color:var(--muted);font-weight:400;font-size:12px}
+  .left{display:flex;flex-direction:column;gap:12px;min-height:0;padding-right:7px}
+
+  .drop{border:1.5px dashed var(--line-strong);border-radius:var(--radius);background:var(--panel);
+    padding:18px;text-align:center;color:var(--muted);cursor:pointer;transition:background .15s,border-color .15s;
+    height:var(--droph,auto);min-height:116px;max-height:340px;overflow:hidden;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;flex:0 0 auto}
+  .drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+  .drop .big{font-size:24px;line-height:1;margin-bottom:6px;opacity:.55}
+  .drop b{color:var(--ink)}
+  .drop .sub{font-size:12px;margin-top:3px}
+
+  .files{flex:1;display:flex;flex-direction:column;min-height:0}
+  .files .body{overflow:auto;flex:1;min-height:110px}
+  .row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #f1f2f4}
+  .row:last-child{border-bottom:0}
+  .row .ico{width:22px;height:22px;border-radius:6px;background:var(--accent-soft);color:var(--accent);
+    display:grid;place-items:center;font-size:10px;font-weight:700;flex:0 0 auto}
+  .row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .sz{font-size:12px;color:var(--muted);flex:0 0 auto}
+  .chip{font-size:11px;padding:2px 8px;border-radius:999px;flex:0 0 auto;border:1px solid transparent}
+  .chip.wait{background:#f3f4f6;color:#4b5563;border-color:#e5e7eb}
+  .chip.run{background:var(--accent-soft);color:var(--accent);border-color:#d6e2ff}
+  .chip.done{background:#eaf7ef;color:var(--ok);border-color:#cdeeda}
+  .chip.fail{background:#fdecea;color:var(--err);border-color:#f8d4d0}
+  .row .x{color:#9aa1ab;cursor:pointer;font-size:15px}
+  .row .x:hover{color:var(--err)}
+  .empty{padding:14px 16px;text-align:center;color:var(--muted);font-size:13px}
+  .empty .eicon{font-size:22px;line-height:1;opacity:.35;margin-bottom:6px}
+  .empty .etitle{font-size:14px;color:var(--ink);font-weight:600;margin-bottom:10px}
+  .empty .elist{display:grid;gap:2px;font-size:12.5px;line-height:1.5}
+  .empty .elist b{color:#4b5563;font-weight:600}
+  .empty .ectl{margin-top:8px}
+  /* 文件区变矮时，空状态按优先级逐级简化 */
+  .files .body{container-type:size}
+  @container (max-height:180px){ .empty .eicon{display:none} }
+  @container (max-height:140px){ .empty .elist{display:none} }
+  @container (max-height:90px){
+    .empty{padding:10px 12px}
+    .empty .etitle{font-size:12.5px;margin-bottom:4px}
+    .empty .ectl{display:none}
+  }
+  .errbox{margin:0;border-bottom:1px solid #f1f2f4;background:#fff7f6;font-size:12px;color:#8a3b36}
+  .errbox summary{cursor:pointer;padding:7px 16px;color:var(--err);font-weight:600;font-size:12px}
+  .errbox pre{margin:0;padding:0 16px 10px;white-space:pre-wrap;word-break:break-all;
+    font:12px/1.5 ui-monospace,Consolas,monospace;max-height:200px;overflow:auto;color:#6b4b47}
+  .badge{display:inline-block;min-width:16px;padding:1px 5px;border-radius:999px;
+    background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:600;
+    line-height:1.35;text-align:center}
+  .fonthint{grid-column:1/-1;font-size:12px;color:var(--warn);background:#fffaf0;
+    border:1px solid #f3e2c0;border-radius:8px;padding:6px 9px;line-height:1.5}
+  .log{font:12px/1.6 ui-monospace,Consolas,monospace;color:#4b5563;background:#fafafa;
+    border-top:1px solid var(--line);padding:8px 14px;height:var(--logh,96px);flex:0 0 auto;overflow:auto;white-space:pre-wrap}
+  .log .ln{margin:1px 0;white-space:pre-wrap;word-break:break-all}
+  .log .ln.err{color:var(--err);font-weight:600}
+  .log .ln.ok{color:#0f7a45}
+  .log .ln.info{color:#4b5563}
+  .logbar{display:flex;align-items:center;gap:8px;padding:6px 14px 4px;border-top:1px solid var(--line);background:#fafafa}
+  .logtitle{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.3px}
+  .loghandle{height:5px;background:#f1f2f4;cursor:ns-resize;border-top:1px solid var(--line)}
+  .loghandle:hover{background:var(--accent-soft)}
+  .sig{font-size:11px;color:var(--muted);text-decoration:none;cursor:pointer;white-space:nowrap;
+    padding:4px 6px;border-radius:6px;flex:0 0 auto;transition:color .15s,background .15s}
+  .sig:hover{color:var(--accent);background:var(--accent-soft)}
+  button.ghost.mini{padding:2px 8px;font-size:11.5px;border-radius:6px}
+
+  .right{overflow:auto;padding-bottom:8px;padding-left:7px}
+  .right .card{margin-bottom:12px}
+  .in{padding:10px 16px 14px;display:grid;grid-template-columns:104px 1fr;gap:8px 10px;align-items:center}
+  .in>label{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:keep-all}
+  /* 右栏变窄时：标签一行、控件一行，不再硬挤两列 */
+  #settings{container-type:inline-size}
+  @container (max-width:360px){
+    .in{grid-template-columns:1fr;gap:4px 0}
+    .in>label{white-space:normal;overflow:visible;text-overflow:clip;margin-top:6px}
+    .in>label:first-child{margin-top:0}
+    .margins{grid-template-columns:repeat(2,1fr)!important}
+    .fsrow{grid-template-columns:1fr!important}
+  }
+  .adv .line>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:keep-all}
+  .in label{font-size:12.5px;color:var(--muted)}
+  input[type=text],input[type=number],select{width:100%;padding:6px 9px;border:1px solid var(--line-strong);
+    border-radius:8px;background:#fff;font:inherit;font-size:13px;color:var(--ink)}
+  input:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+  .two{display:flex;gap:6px;align-items:center}
+  .seg{display:flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-sizing:border-box;min-height:33px}
+  .seg button{border:0;background:#fff;padding:6px 8px;font:inherit;font-size:13px;cursor:pointer;color:#4b5563;flex:1;text-align:center;white-space:nowrap;line-height:1.2}
+  .seg button+button{border-left:1px solid var(--line-strong)}
+  .seg button.on{background:var(--accent);color:#fff}
+  details.grp{border-bottom:1px solid var(--line)}
+  details.grp:last-child{border-bottom:0}
+  details.grp>summary{list-style:none;cursor:pointer;padding:11px 16px;font-size:13px;font-weight:600;
+    color:#374151;display:flex;align-items:center;gap:8px}
+  details.grp>summary::-webkit-details-marker{display:none}
+  details.grp>summary::before{content:"›";color:#9aa1ab;transition:.15s;font-size:16px;line-height:1}
+  details.grp[open]>summary::before{transform:rotate(90deg)}
+  .drawerbody{flex:1;overflow:auto;padding:8px 0 24px;container-type:inline-size}
+  .adv{display:grid;grid-template-columns:1fr;gap:0 22px;padding:10px 18px;align-content:start;align-items:start}
+  @container (min-width:660px){.adv{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @container (min-width:1000px){.adv{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+  .adv .line{display:grid;grid-template-columns:1fr 130px;gap:8px;align-items:center;padding:4px 0;
+    font-size:12px;color:#4b5563}
+  .adv .line code{font-size:11.5px;color:#6b7280}
+  /* 抽屉变窄（单列）时，高级项改为上下堆叠 */
+  @container (max-width:460px){
+    .adv .line{grid-template-columns:1fr;gap:3px 0;padding:6px 0}
+    .adv .line>span{white-space:normal;overflow:visible;text-overflow:clip}
+    .adv .line input,.adv .line select{width:100%}
+  }
+  /* 单位文字不参与压缩 */
+  .in .two>span{flex:0 0 auto;white-space:nowrap}
+  .advgroup{margin:0 0 14px}
+  .advgh{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);
+    font-weight:600;padding:4px 0 5px;border-bottom:1px dashed var(--line);margin-bottom:4px;
+    position:sticky;top:0;background:var(--panel);z-index:1}
+  .advcount{margin-left:auto;font-weight:400;font-size:11px;color:#9aa3b2}
+
+  footer{display:flex;align-items:center;gap:14px;padding:11px 22px;background:var(--panel);
+    border-top:1px solid var(--line)}
+  .outdir{flex:1;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);min-width:0}
+  .outdir input{flex:1;min-width:120px}
+  .bar{width:160px;height:6px;border-radius:99px;background:#eceef2;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+  button.primary{border:0;background:var(--accent);color:#fff;padding:9px 22px;border-radius:9px;
+    font:inherit;font-weight:600;cursor:pointer}
+  button.primary:disabled{opacity:.55;cursor:not-allowed}
+  button.primary.danger{background:var(--err)}
+  button.ghost{border:1px solid var(--line-strong);background:#fff;color:#374151;padding:7px 12px;
+    border-radius:8px;font:inherit;font-size:12.5px;cursor:pointer}
+  @media (max-width:1000px){main{grid-template-columns:1fr;overflow:auto}.splitter{display:none}.right{overflow:visible}}
+  @media (max-width:900px){.row .sz{display:none}.bar{display:none}.sig{display:none}}
+
+  /* ---------- 深色主题 ---------- */
+  [data-theme="dark"]{
+    --bg:#0f1115; --panel:#161a21; --ink:#e5e9f0; --muted:#98a1b0;
+    --line:#262c37; --line-strong:#39414f;
+    --accent:#5b8cff; --accent-soft:#1b2740;
+    --ok:#3ddc84; --warn:#e0a458; --err:#ff6b6b;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.35);
+  }
+  /* ---------- 高级设置抽屉 ---------- */
+  .drawer-mask{position:fixed;inset:0;background:rgba(15,17,21,.32);opacity:0;pointer-events:none;
+    transition:opacity .2s;z-index:40}
+  .drawer-mask.on{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(var(--drawerw,780px),96vw);background:var(--panel);
+    border-left:1px solid var(--line);box-shadow:-14px 0 40px rgba(0,0,0,.22);
+    transform:translateX(102%);transition:transform .22s cubic-bezier(.22,.8,.3,1);
+    z-index:41;display:flex;flex-direction:column}
+  .drawer.on{transform:none}
+  .drawer-handle{position:absolute;left:0;top:0;bottom:0;width:12px;cursor:col-resize;z-index:2}
+  .drawer-handle::before{content:"";position:absolute;top:50%;left:4px;transform:translateY(-50%);
+    width:3px;height:42px;border-radius:99px;background:var(--line);transition:background .15s}
+  .drawer-handle:hover::before,.drawer-handle.dragging::before{background:var(--accent)}
+  .drawerhead{display:flex;align-items:center;gap:10px;padding:13px 18px;
+    border-bottom:1px solid var(--line);background:var(--panel)}
+  .drawerhead h2{font-size:14px;margin:0;font-weight:700;color:var(--ink)}
+  .drawerhint{font-size:12px;color:var(--muted)}
+  @container (max-width:560px){ .drawerhint{display:none} }
+  .drawerhint b{color:var(--ink);font-weight:600}
+  
+  #advBadge{display:none;margin-left:6px;padding:0 5px;border-radius:999px;
+    background:var(--accent);color:#fff;font-size:10.5px;font-weight:700}
+  #advBadge.on{display:inline-block}
+
+  /* ---------- 关于页 ---------- */
+  .about{padding:22px 28px 34px;max-width:760px;margin:0 auto;color:var(--muted);font-size:13px}
+  .about-hero{display:flex;align-items:center;gap:16px;padding-bottom:16px;
+    border-bottom:1px solid var(--line);margin-bottom:6px}
+  .about-logo{width:54px;height:54px;flex:0 0 auto;border-radius:13px;
+    background:linear-gradient(135deg,#2F6BFF,#6E9BFF);color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font:700 26px/1 "Segoe UI",system-ui,sans-serif;box-shadow:0 4px 14px rgba(47,107,255,.28)}
+  .about-hero h1{margin:0;font-size:19px;color:var(--ink);font-weight:700;letter-spacing:.2px}
+  .about-sub{margin:3px 0 0;font-size:12.5px;color:var(--muted)}
+  .about-author{margin:5px 0 0;font-size:12.5px;color:var(--muted)}
+  .about-author b{color:var(--accent);font-weight:700}
+  .about h3{margin:24px 0 8px;font-size:13.5px;color:var(--ink);font-weight:700;
+    padding-left:9px;border-left:3px solid var(--accent);line-height:1.25}
+  .about p{margin:7px 0;line-height:1.8}
+  .about b{color:var(--ink);font-weight:600}
+  .about ul,.about ol{margin:7px 0 7px 20px;padding:0;line-height:1.85}
+  .about li{margin:2px 0}
+  .about-steps li{margin:4px 0}
+  .about table{width:100%;border-collapse:collapse;margin:8px 0 4px;font-size:12.5px}
+  .about th,.about td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+  .about th{color:var(--muted);font-weight:600;white-space:nowrap;width:128px}
+  .about td{color:var(--muted)}
+  .about code{background:var(--accent-soft);color:var(--accent);padding:1px 5px;
+    border-radius:4px;font:12px/1.5 ui-monospace,Consolas,monospace}
+  .about pre{background:var(--accent-soft);color:var(--ink);border-radius:8px;
+    padding:11px 13px;margin:8px 0;overflow:auto;white-space:pre;
+    font:12px/1.6 ui-monospace,Consolas,monospace}
+  .about-footer{margin-top:26px;padding-top:14px;border-top:1px solid var(--line);
+    text-align:center;font-size:12px;line-height:1.9;color:var(--muted)}
+  .about-footer b{color:var(--ink)}
+  .about-license{font-size:11.5px;opacity:.8}
+
+  [data-theme="dark"] input[type=text],
+  [data-theme="dark"] input[type=number],
+  [data-theme="dark"] select{background:#1b2029;color:var(--ink);border-color:var(--line-strong)}
+  [data-theme="dark"] .row{border-bottom-color:#1e242d}
+  [data-theme="dark"] .log,
+  [data-theme="dark"] .logbar{background:#12161c}
+  [data-theme="dark"] .loghandle{background:#1a1f27;border-top-color:var(--line)}
+  [data-theme="dark"] .log .ln.info{color:#a9b2c0}
+  [data-theme="dark"] .empty .elist b{color:#c7d0dc}
+  [data-theme="dark"] .errbox{background:#2a1c1c}
+  [data-theme="dark"] .errbox pre{color:#d7b3ae}
+  [data-theme="dark"] .fonthint{background:#2a2418;border-color:#4a3d22}
+  [data-theme="dark"] .chip.wait{background:#232833;color:#98a1b0;border-color:#2e3542}
+  [data-theme="dark"] .chip.run{background:#1b2740;color:#8fb0ff;border-color:#28406b}
+  [data-theme="dark"] .chip.done{background:#14291d;color:#4fdc95;border-color:#1f4a32}
+  [data-theme="dark"] .chip.fail{background:#2c1a1a;color:#ff7b7b;border-color:#4a2626}
+  [data-theme="dark"] .seg button:not(.on){background:#1b2029;color:#b8c0cd}
+  [data-theme="dark"] button.ghost{background:#1b2029;color:#cdd4df;border-color:var(--line-strong)}
+  [data-theme="dark"] .drop:hover,[data-theme="dark"] .drop.over{background:#16203a}
+  [data-theme="dark"] .adv .line code{color:#8b93a1}
+  .themeBtn{border:1px solid var(--line-strong);background:var(--panel);color:var(--muted);
+    padding:3px 9px;border-radius:999px;font:inherit;font-size:11.5px;cursor:pointer}
+  .themeBtn:hover{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">W</div>
+  <h1>Eimitriliaword Formatter Pro</h1>
+  <span class="ver" id="ver">…</span>
+  <div class="spacer"></div>
+  <button class="themeBtn" id="openAdv" title="打开高级设置（57 项）">高级设置<span id="advBadge"></span></button>
+  <button class="themeBtn" id="openAbout" title="关于本软件">关于</button>
+  <button class="themeBtn" id="themeBtn" title="切换浅色 / 深色 / 跟随系统">跟随系统</button>
+  <span class="status"><span class="dot" id="dot"></span><span id="conn">连接中…</span></span>
+</header>
+
+<main>
+  <section class="left">
+    <div class="drop" id="drop">
+      <div class="big">⬇</div>
+      把文件拖到这里，或 <b>点击选择</b>
+      <div class="sub">.docx / .doc / .wps / .txt / .md &nbsp;·&nbsp; 可多选 &nbsp;·&nbsp;
+        <a id="pickDir" style="color:var(--accent);cursor:pointer;text-decoration:none">选择整个文件夹</a>
+      </div>
+      <input type="file" id="picker" multiple accept=".docx,.doc,.wps,.txt,.md" hidden>
+      <input type="file" id="dirpicker" webkitdirectory multiple hidden>
+    </div>
+
+    <div class="splitter-h" id="splitDrop" title="上下拖动调整拖拽区高度（双击恢复）"></div>
+
+    <div class="card files">
+      <h2>待处理 <span class="cnt" id="cnt">0 个文件</span>
+        <span style="flex:1"></span>
+        <button class="ghost" id="clear">清空</button>
+      </h2>
+      <div class="body" id="list">
+        <div class="empty" id="empty">
+          <div class="eicon">📄</div>
+          <div class="etitle">把 Word 文档拖进来开始</div>
+          <div class="elist">
+            <span>支持 <b>.docx / .doc / .wps / .txt / .md</b></span>
+            <span>可一次拖入多个文件，或<b>整个文件夹</b>（会递归读取子目录）</span>
+            <span>排版结果输出到下方目录，<b>原文件不会被修改</b></span>
+          </div>
+          <div class="ectl"><button class="ghost" id="pickDir2">选择文件夹</button></div>
+        </div>
+      </div>
+      <div class="logbar">
+        <span class="logtitle">日志</span>
+        <span style="flex:1"></span>
+        <button class="ghost mini" id="copyLog">复制</button>
+      </div>
+      <div class="loghandle" id="loghandle" title="上下拖动可调整日志高度"></div>
+      <div class="log" id="log"><div class="ln info">就绪。Ctrl+Enter 开始排版，Esc 取消。</div></div>
+    </div>
+  </section>
+
+  <div class="splitter" id="splitter" title="拖动调整左右宽度（双击恢复默认）"></div>
+
+  <aside class="right">
+    <div class="card">
+      <h2>排版方案</h2>
+      <div class="in" style="grid-template-columns:1fr">
+        <select id="preset"></select>
+        <div class="two">
+          <button class="ghost" id="reset">恢复默认</button>
+          <button class="ghost" id="saveCfg">导出配置</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="settings"></div>
+  </aside>
+</main>
+
+<footer>
+  <div class="outdir">
+    <span>输出到</span>
+    <input type="text" id="outdir" spellcheck="false">
+    <button class="ghost" id="openDir" title="在资源管理器中打开输出目录">打开目录</button>
+  </div>
+  <div class="bar"><i id="prog"></i></div>
+  <button class="primary" id="run">开始排版</button>
+  <a class="sig" id="sig" title="查看关于">© 2026 Eimitrilia Spotwinx</a>
+</footer>
+
+<!-- 高级设置抽屉 -->
+<div class="drawer-mask" id="drawerMask"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="高级设置">
+  <div class="drawer-handle" id="drawerHandle" title="左右拖动调整宽度（双击恢复默认）"></div>
+  <div class="drawerhead">
+    <h2>高级设置</h2>
+    <span class="drawerhint">共 <b id="advTotal">57</b> 项 · 按用途分组</span>
+    <span style="flex:1"></span>
+    <button class="ghost mini" id="advReset">恢复高级默认</button>
+    <button class="ghost mini" id="drawerClose">关闭</button>
+  </div>
+  <div class="drawerbody">
+    <div class="adv" id="adv"></div>
+  </div>
+</aside>
+
+<!-- 关于 -->
+<div class="drawer-mask" id="aboutMask"></div>
+<aside class="drawer about" id="aboutDrawer" aria-hidden="true" aria-label="关于">
+  <div class="drawerhead">
+    <h2>关于</h2>
+    <span class="drawerhint">Eimitriliaword Formatter Pro · v<span data-ver></span></span>
+    <span style="flex:1"></span>
+    <button class="ghost mini" id="aboutClose">关闭</button>
+  </div>
+  <div class="drawerbody">
+    <div class="about">
+
+      <div class="about-hero">
+        <div class="about-logo">W</div>
+        <div>
+          <h1>Eimitriliaword Formatter Pro</h1>
+          <p class="about-sub">Word 文档智能排版工具 · v<span data-ver></span></p>
+          <p class="about-author">作者：<b>Eimitrilia Spotwinx</b></p>
+        </div>
+      </div>
+
+      <h3>这是什么</h3>
+      <p>一个<b>完全本地运行</b>的 Word 文档自动排版工具。把排版规范写进参数，把文档拖进来，它按规范重排一遍，原文件不动，结果另存。</p>
+      <p>主要面向中文正式文档：党政机关公文、企业报告、学术论文。核心是「格式规范化」——字号字体、行距缩进、标题层级、表格线宽、落款位置、页码样式这些容易出错又必须统一的东西。</p>
+
+      <h3>基本信息</h3>
+      <table>
+        <tr><th>软件名称</th><td>Eimitriliaword Formatter Pro</td></tr>
+        <tr><th>当前版本</th><td><span data-ver></span></td></tr>
+        <tr><th>程序类型</th><td>本地 Web 界面应用（Python 后端 + 浏览器前端）</td></tr>
+        <tr><th>作者</th><td>Eimitrilia Spotwinx</td></tr>
+        <tr><th>上游项目</th><td>wfp（MIT License，Copyright © 2025 cwyalpha）</td></tr>
+        <tr><th>运行环境</th><td>Windows · Python 3.14.4（项目内 venv）· 需本机安装 WPS 或 Microsoft Word</td></tr>
+        <tr><th>界面规模</th><td>前端单文件 1321 行 · 后端 487 行 · 排版内核 2486 行</td></tr>
+        <tr><th>配置项</th><td>共 83 项（常用 26 + 高级 57，分 9 组）</td></tr>
+        <tr><th>打包产物</th><td>onedir 形态：exe 5.8 MB，整包 39.1 MB / 129 个文件</td></tr>
+        <tr><th>最近更新</th><td>2026-11-25</td></tr>
+      </table>
+
+      <h3>能做什么</h3>
+      <ul>
+        <li><b>正文规范化</b>：字体字号、行距（固定值 / 倍数）、首行缩进、左右缩进、页边距、强制 A4</li>
+        <li><b>标题体系</b>：主标题 / 副标题 / 一级 / 二级标题的字体、字号、加粗、段前段后间距、大纲级别</li>
+        <li><b>标题后留白</b>：不处理 / 空一行 / 段落间距 三选一</li>
+        <li><b>表格</b>：字体字号、表头加粗、行高、列宽自适应、边框线宽、单元格对齐、取消自动换行</li>
+        <li><b>附件与落款</b>：附件标题格式、落款版式、日期规范化、落款前间距</li>
+        <li><b>页码与页脚</b>：页码字体字号、奇偶页对齐、页脚距边界</li>
+        <li><b>西文混排</b>：中文用中文字体、英文数字用西文字体，可自定义</li>
+        <li><b>输入处理</b>：空行处理、自动编号转文字、标点规范化</li>
+        <li><b>批量</b>：多文件拖入、整个文件夹递归读取，逐个排版并显示状态</li>
+        <li><b>预设</b>：党政机关公文（默认）、企业报告、学术论文</li>
+      </ul>
+
+      <h3>怎么用</h3>
+      <ol class="about-steps">
+        <li>把 .docx / .doc / .wps / .txt / .md 拖进左上角的虚线框，或点「选择整个文件夹」</li>
+        <li>在右侧选一个预设，或逐项调整参数（高级项在右上角「高级设置」里）</li>
+        <li>确认底部「输出到」的目录，点「开始排版」（快捷键 <code>Ctrl+Enter</code>）</li>
+        <li>完成后点「打开目录」取文件，原文件不会被修改</li>
+      </ol>
+
+      <h3>界面说明</h3>
+      <table>
+        <tr><th>区域</th><th>作用</th></tr>
+        <tr><td>左上 · 拖拽区</td><td>拖入文件或文件夹；高度可拖拽调整（96–340px）</td></tr>
+        <tr><td>左下 · 待处理</td><td>文件列表与逐个状态；空时显示操作引导</td></tr>
+        <tr><td>底部 · 日志</td><td>逐行记录处理过程，失败行标红；可拖动调高（60–600px）、可一键复制</td></tr>
+        <tr><td>右侧 · 配置</td><td>预设 + 四组常用配置，折叠标题会显示「已改几项」徽标</td></tr>
+        <tr><td>右上 · 高级设置</td><td>57 项高级参数，抽屉形式，按 9 类分组，按宽度自动排 1/2/3 列</td></tr>
+        <tr><td>中间 · 分隔条</td><td>左右拖动调整两栏宽度（右栏 300px 起），双击复位</td></tr>
+        <tr><td>右上 · 主题</td><td>跟随系统 / 浅色 / 深色 三态切换</td></tr>
+      </table>
+
+      <h3>技术架构</h3>
+      <table>
+        <tr><th>层</th><th>实现</th></tr>
+        <tr><td>前端</td><td>单文件 HTML（59 KB），零外部依赖，原生 JS，无框架</td></tr>
+        <tr><td>后端</td><td>Python 标准库 <code>http.server</code> + <code>ThreadingHTTPServer</code>，无 Web 框架</td></tr>
+        <tr><td>文档处理</td><td><code>python-docx</code> 读写 .docx；<code>lxml</code> 处理底层 XML</td></tr>
+        <tr><td>格式转换</td><td>.doc / .wps 通过 COM 调用本机 WPS 或 Word 先转换为 .docx</td></tr>
+        <tr><td>字体检测</td><td>读 HKLM + HKCU 字体注册表，映射常见中英文字体名</td></tr>
+        <tr><td>界面外壳</td><td>Edge <code>--app</code> 无地址栏窗口</td></tr>
+        <tr><td>打包</td><td>PyInstaller onedir，<code>--noconsole</code>，构建脚本 <code>build.ps1</code></td></tr>
+      </table>
+
+      <h3>文件结构</h3>
+      <pre>wfp-webui/
+├─ wfp_web.py          后端主程序（HTTP 服务、接口、窗口拉起）487 行
+├─ webui/index.html    前端全部界面（HTML+CSS+JS 单文件）1321 行
+├─ wfp_core.py         排版内核，2486 行
+├─ wfp_config.py       默认配置项定义
+├─ wfp_cli.py          命令行入口
+├─ build.ps1           一键打包脚本（环境检查 → PyInstaller → 同步前端）
+├─ 启动.bat            兜底启动入口
+├─ _env/.venv/         运行时 Python 环境（3.14.4）
+├─ _build/             打包用 Python 环境（3.11，含 PyInstaller）
+├─ assets/             图标与预览图
+├─ dist/WordFormatter/ 打包产物（exe + 依赖）
+├─ out/                默认输出目录
+└─ BUILD-NOTES.md      构建与踩坑记录</pre>
+
+      <h3>三种运行方式</h3>
+      <table>
+        <tr><th>方式</th><th>入口</th><th>说明</th></tr>
+        <tr><td>桌面快捷方式</td><td>桌面「Eimitriliaword Formatter Pro」</td><td>直接跑源码，改前端后按 F5 即生效，无需重打包</td></tr>
+        <tr><td>独立 exe</td><td><code>dist\WordFormatter\WordFormatter.exe</code></td><td>免安装，可拷给别人；未被 Windows 信任时可能被 SmartScreen 拦截</td></tr>
+        <tr><td>批处理</td><td><code>启动.bat</code></td><td>兜底入口，直接调 venv 里的 python</td></tr>
+      </table>
+
+      <h3>构建</h3>
+      <p>只有改了后端 <code>wfp_web.py</code> 才需要重新打包；只改前端时把 <code>webui\index.html</code> 覆盖到 <code>dist\WordFormatter\_internal\webui\</code> 即可。</p>
+      <pre>cd wfp-webui
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+
+# 可选
+.\build.ps1 -KeepData     # 保留运行时数据目录</pre>
+      <p>首次运行会创建打包环境（约 27 秒），之后每次约 <b>12 秒</b>。</p>
+
+      <h3>配置存到哪里</h3>
+      <p>所有记忆都保存在浏览器 localStorage，不上传任何服务器：</p>
+      <table>
+        <tr><th>键</th><th>内容</th></tr>
+        <tr><td><code>wfp.config.v1</code></td><td>全部 83 项配置的当前值</td></tr>
+        <tr><td><code>wfp.rightw</code></td><td>左右两栏的宽度</td></tr>
+        <tr><td><code>wfp.droph</code></td><td>拖拽区高度</td></tr>
+        <tr><td><code>wfp.logh</code></td><td>日志区高度</td></tr>
+        <tr><td><code>wfp.drawerw</code></td><td>高级设置抽屉宽度</td></tr>
+        <tr><td><code>wfp.theme</code></td><td>主题模式（auto / light / dark）</td></tr>
+      </table>
+      <p>点「恢复默认」会同时清掉 <code>wfp.config.v1</code>。</p>
+
+      <h3>已知限制</h3>
+      <ul>
+        <li><b>.doc / .wps 依赖本机 Office</b>：必须先装 WPS 或 Microsoft Word，否则这两个格式无法处理；.docx 不受影响</li>
+        <li><b>SmartScreen</b>：未签名 exe 可能被拦截，只能点「仍要运行」</li>
+        <li><b>字体缺失</b>：本机没装的字体会被 Word 自动替换，界面会提示但结果以替换为准</li>
+        <li><b>COM 单线程</b>：格式转换是串行执行的，大文档一本要等</li>
+        <li><b>日志上限</b>：界面最多保留 400 行，超出丢弃最早的</li>
+        <li><b>取消不中断当前文件</b>：点「取消」会跳过后续文件，但正在处理的那本会跑完</li>
+        <li><b>同名输出会覆盖</b>：同一目录下重复排版同名文件，后一次覆盖前一次</li>
+      </ul>
+
+      <h3>隐私</h3>
+      <p>全部处理在本机完成：文档不会上传，没有遥测，不联网校验。唯一的网络行为是启动时绑定 <code>127.0.0.1</code> 的本地端口，供界面与后台通信。</p>
+
+      <h3>版本记录</h3>
+      <p><b>2026-11-25</b></p>
+      <ul>
+        <li>新增：配置记忆、整文件夹拖入、失败详情展开、字体安装检测、快捷键、取消功能</li>
+        <li>新增：深色模式、日志可调高度与失败标红、空状态引导、无障碍标签</li>
+        <li>新增：左右分栏可拖、拖拽区/日志高度可拖、高级设置独立抽屉（宽度可调、1/2/3 列自适应）</li>
+        <li>修复：行距单位切换不换算、输出目录默认空、分段控件深色下选中态失效、窄宽度下文字与控件被压坏</li>
+        <li>其他：高级 57 项按用途分为 9 组并中文化</li>
+      </ul>
+
+      <h3>致谢</h3>
+      <p>排版内核来自开源项目 <b>wfp</b>（作者 cwyalpha，MIT License）。本界面、本地服务层与打包流程在此基础上构建。</p>
+
+      <div class="about-footer">
+        <div>Eimitriliaword Formatter Pro v<span data-ver></span></div>
+        <div>© 2026 <b>Eimitrilia Spotwinx</b> · 保留所有权利</div>
+        <div class="about-license">上游内核遵循 MIT License</div>
+      </div>
+
+    </div>
+  </div>
+</aside>
+
+<script>
+const $ = s => document.querySelector(s);
+let META = null;
+const files = [];          // {id, file, name, size}
+const values = {};         // 当前配置值
+let busy = false;
+let abortCtl = null;
+let cancelReq = false;
+
+/* ---------- 字体的安装状态 ---------- */
+function normFont(s){
+  return String(s).toLowerCase()
+    .replace(/\s*\((truetype|opentype|truetype collection)\)\s*$/,'')
+    .replace(/[\s_\-]/g,'')
+    .replace(/(gb2312|gbk|简体|简)$/,'');
+}
+function fontInstalled(name){
+  if(!META || !META.installedFonts || !META.installedFonts.length) return true;  // 拿不到就当作可用
+  return META.installedFonts.includes(normFont(name));
+}
+
+/* ---------- 小工具 ---------- */
+const fmtKB = n => n > 1024*1024 ? (n/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
+const ext = n => (n.split('.').pop()||'').slice(0,4).toUpperCase();
+function log(msg, kind){
+  const el = $('#log');
+  if(!el) return;
+  const div = document.createElement('div');
+  let k = kind;
+  if(!k){
+    if(/失败|错误|无法|取消|取消/.test(msg)) k = 'err';
+    else if(/^(完成|成功)|已同步|已载入/.test(msg)) k = 'ok';
+    else k = 'info';
+  }
+  div.className = 'ln ' + k;
+  div.textContent = msg;
+  el.appendChild(div);
+  while(el.children.length > 400) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+
+/* 日志区：拖动调高 + 复制 */
+(function initLogPane(){
+  const el = document.getElementById('log');
+  const handle = document.getElementById('loghandle');
+  const btn = document.getElementById('copyLog');
+  if(!el) return;
+
+  try{
+    const saved = Number(localStorage.getItem('wfp.logh') || 0);
+    if(saved >= 60 && saved <= 600) el.style.setProperty('--logh', saved + 'px');
+  }catch(e){}
+
+  let dragging = false, startY = 0, startH = 0;
+  if(handle){
+    handle.addEventListener('mousedown', e => {
+      dragging = true; startY = e.clientY; startH = el.getBoundingClientRect().height;
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+      if(!dragging) return;
+      // 动态上限：给文件区留出保底高度，避免被日志挤没
+      const leftEl = document.querySelector('.left');
+      const dropEl = document.getElementById('drop');
+      let cap = 600;
+      if(leftEl && dropEl){
+        const reserve = 250;
+        cap = Math.max(60, Math.min(600,
+          leftEl.clientHeight - dropEl.getBoundingClientRect().height - reserve));
+      }
+      const h = Math.max(60, Math.min(cap, startH - (e.clientY - startY)));
+      el.style.setProperty('--logh', h + 'px');
+    });
+    window.addEventListener('mouseup', () => {
+      if(!dragging) return;
+      dragging = false;
+      document.body.style.userSelect = '';
+      try{ localStorage.setItem('wfp.logh', String(Math.round(el.getBoundingClientRect().height))); }catch(e){}
+    });
+  }
+
+  if(btn){
+    btn.onclick = async () => {
+      try{
+        await navigator.clipboard.writeText(el.innerText);
+        btn.textContent = '已复制';
+        setTimeout(()=>{ btn.textContent = '复制'; }, 1200);
+      }catch(err){
+        log('复制失败：' + err.message, 'err');
+      }
+    };
+  }
+})();
+
+/* ---------- 配置持久化 ---------- */
+const LS_KEY = 'wfp.config.v1';
+function persistConfig(){
+  try { localStorage.setItem(LS_KEY, JSON.stringify(values)); } catch (e) {}
+}
+function restoreConfig(){
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return false;
+    const saved = JSON.parse(raw);
+    if(saved && typeof saved === 'object'){
+      Object.assign(values, saved);
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+function clearConfig(){
+  try { localStorage.removeItem(LS_KEY); } catch (e) {}
+}
+
+/* ---------- 高级项分组 ---------- */
+const ADV_GROUPS = [
+  { title: '标题与大纲', keys: [
+    'title_bold','title_line_spacing','title_line_spacing_multiple','title_line_spacing_unit',
+    'title_after_spacing','title_after_spacing_unit','h1_bold','h2_bold','set_outline' ] },
+  { title: '副标题', keys: [
+    'subtitle_font','subtitle_size','subtitle_bold',
+    'subtitle_line_spacing','subtitle_line_spacing_multiple','subtitle_line_spacing_unit' ] },
+  { title: '页码与页脚', keys: [
+    'footer_distance','page_number_align','page_number_font','page_number_size' ] },
+  { title: '缩进', keys: [
+    'left_indent_cm','left_indent_chars','right_indent_cm','right_indent_chars','paragraph_indent_unit' ] },
+  { title: '西文字体', keys: [ 'english_font','use_custom_english_font' ] },
+  { title: '表格', keys: [
+    'table_font','table_size','table_header_font','table_header_bold',
+    'table_line_spacing','table_line_spacing_multiple','table_line_spacing_unit',
+    'table_row_height_cm','table_width_percent','table_alignment','table_cell_alignment',
+    'table_border_size_pt','table_remove_text_wrapping' ] },
+  { title: '表注与图注', keys: [
+    'table_caption_font','table_caption_size','figure_caption_font','figure_caption_size' ] },
+  { title: '附件', keys: [
+    'attachment_font','attachment_size','attachment_bold',
+    'attachment_title_after_spacing','attachment_title_after_spacing_unit',
+    'enable_attachment_title_after_blank_line','enable_attachment_title_after_spacing' ] },
+  { title: '落款', keys: [
+    'enable_signature_formatting','signature_layout','signature_include_attachments',
+    'signature_normalize_date','signature_before_spacing','signature_before_spacing_mode',
+    'signature_before_spacing_unit' ] }
+];
+
+/* ---------- 高级项中文名 ---------- */
+const ADV_LABELS = {
+  attachment_bold: '附件加粗方式',
+  attachment_font: '附件字体',
+  attachment_size: '附件字号',
+  attachment_title_after_spacing: '附件标题段后间距',
+  attachment_title_after_spacing_unit: '附件标题间距单位',
+  enable_attachment_title_after_blank_line: '附件标题后空一行',
+  enable_attachment_title_after_spacing: '附件标题后加段距',
+  enable_signature_formatting: '启用落款格式化',
+  english_font: '西文字体',
+  figure_caption_font: '图注字体',
+  figure_caption_size: '图注字号',
+  footer_distance: '页脚距边界 (cm)',
+  h1_bold: '一级标题加粗方式',
+  h2_bold: '二级标题加粗方式',
+  left_indent_chars: '左缩进 (字符)',
+  left_indent_cm: '左缩进 (cm)',
+  page_number_align: '页码对齐方式',
+  page_number_font: '页码字体',
+  page_number_size: '页码字号',
+  paragraph_indent_unit: '缩进单位',
+  right_indent_chars: '右缩进 (字符)',
+  right_indent_cm: '右缩进 (cm)',
+  set_outline: '设置大纲级别',
+  signature_before_spacing: '落款前间距',
+  signature_before_spacing_mode: '落款前间距模式',
+  signature_before_spacing_unit: '落款间距单位',
+  signature_include_attachments: '落款包含附件',
+  signature_layout: '落款版式',
+  signature_normalize_date: '规范落款日期',
+  subtitle_bold: '副标题加粗方式',
+  subtitle_font: '副标题字体',
+  subtitle_line_spacing: '副标题行距',
+  subtitle_line_spacing_multiple: '副标题行距倍数',
+  subtitle_line_spacing_unit: '副标题行距单位',
+  subtitle_size: '副标题字号',
+  table_alignment: '表格整体对齐',
+  table_border_size_pt: '表格线宽 (pt)',
+  table_caption_font: '表注字体',
+  table_caption_size: '表注字号',
+  table_cell_alignment: '单元格对齐',
+  table_font: '表格字体',
+  table_header_bold: '表头加粗方式',
+  table_header_font: '表头字体',
+  table_line_spacing: '表格行距',
+  table_line_spacing_multiple: '表格行距倍数',
+  table_line_spacing_unit: '表格行距单位',
+  table_remove_text_wrapping: '取消单元格自动换行',
+  table_row_height_cm: '表格行高 (cm)',
+  table_size: '表格字号',
+  table_width_percent: '表格宽度 (%)',
+  title_after_spacing: '主标题段后间距',
+  title_after_spacing_unit: '标题间距单位',
+  title_bold: '主标题加粗方式',
+  title_line_spacing: '主标题行距',
+  title_line_spacing_multiple: '主标题行距倍数',
+  title_line_spacing_unit: '主标题行距单位',
+  use_custom_english_font: '使用自定义西文字体'
+};
+
+/* ---------- 高级项枚举值 ---------- */
+const ADV_ENUMS = {
+  title_bold: ['preserve','bold','normal'],
+  subtitle_bold: ['preserve','bold','normal'],
+  h1_bold: ['preserve','bold','normal'],
+  h2_bold: ['preserve','bold','normal'],
+  attachment_bold: ['preserve','bold','normal'],
+  table_header_bold: ['preserve','bold','normal'],
+  table_alignment: ['preserve','left','center','right'],
+  table_cell_alignment: ['preserve','left','center','right'],
+  paragraph_indent_unit: ['cm','chars'],
+  title_line_spacing_unit: ['pt','multiple'],
+  subtitle_line_spacing_unit: ['pt','multiple'],
+  table_line_spacing_unit: ['pt','multiple'],
+  title_after_spacing_unit: ['pt','multiple'],
+  attachment_title_after_spacing_unit: ['pt','multiple'],
+  signature_before_spacing_unit: ['pt','multiple']
+};
+
+/* ---------- 加载元数据并渲染表单 ---------- */
+async function boot(){
+  try{
+    const r = await fetch('/api/meta'); META = await r.json();
+    $('#ver').textContent = 'v' + META.version;
+    document.querySelectorAll('[data-ver]').forEach(el => { el.textContent = META.version; });
+    $('#dot').classList.add('on'); $('#conn').textContent = '服务已连接';
+    Object.assign(values, META.defaults);
+    const restored = restoreConfig();
+    $('#preset').innerHTML = Object.keys(META.presets).map(k=>`<option>${k}</option>`).join('');
+    render();
+    if(restored) log('已载入上次使用的配置（点右侧「恢复默认」可清除）。');
+  }catch(e){
+    $('#conn').textContent = '后端未连接'; $('#dot').style.background = 'var(--err)';
+    log('无法连接后端，请确认 python wfp_web.py 正在运行。');
+  }
+}
+
+/* 常用项的中文名（用于 aria-label） */
+const FREQ_LABELS = {
+  margin_top: '上边距', margin_bottom: '下边距', margin_left: '左边距', margin_right: '右边距',
+  body_font: '正文字体', body_size: '正文字号',
+  title_font: '主标题字体', title_size: '主标题字号',
+  h1_font: '一级标题字体', h1_size: '一级标题字号',
+  h2_font: '二级标题字体', h2_size: '二级标题字号',
+  first_line_indent_chars: '首行缩进', blank_line_mode: '空行处理'
+};
+function ariaFor(key){ const t = FREQ_LABELS[key] || (typeof ADV_LABELS !== 'undefined' && ADV_LABELS[key]) || key; return `id="f-${key}" aria-label="${t}"`; }
+
+function fontSelect(key, group){
+  const opts = META.fonts[group] || [];
+  const cur = values[key] || '';
+  const list = new Set([...opts, cur].filter(Boolean));
+  return `<select data-k="${key}" ${ariaFor(key)}>${[...list].map(f=>{
+    const miss = fontInstalled(f) ? '' : ' ⚠';
+    return `<option value="${f}" ${f===cur?'selected':''}>${f}${miss}</option>`;
+  }).join('')}</select>`;
+}
+function sizeSelect(key){
+  const cur = values[key];
+  return `<select data-k="${key}" ${ariaFor(key)}>${Object.entries(META.fontSizes)
+    .map(([label,v])=>`<option value="${v}" ${Number(cur)===Number(v)?'selected':''}>${label}</option>`).join('')}</select>`;
+}
+const num = (key,step='0.1') => `<input type="number" step="${step}" data-k="${key}" ${ariaFor(key)} value="${values[key] ?? ''}">`;
+
+/* 统计一组配置里有多少项与默认值不同 */
+const GROUP_KEYS = {
+  page: ['margin_top','margin_bottom','margin_left','margin_right','body_font','body_size',
+         'line_spacing','line_spacing_multiple','line_spacing_unit','first_line_indent_chars'],
+  title: ['title_font','title_size','h1_font','h1_size','h2_font','h2_size',
+          'enable_title_after_blank_line','enable_title_after_spacing','title_after_spacing'],
+  table: ['enable_table_formatting','table_auto_col_width','table_border_mode','enable_attachment_formatting'],
+  input: ['blank_line_mode','convert_auto_numbering','normalize_punctuation','force_a4']
+};
+function changedCount(keys){
+  if(!META || !META.defaults) return 0;
+  return keys.filter(k => {
+    const a = values[k], b = META.defaults[k];
+    if(typeof a === 'number' || typeof b === 'number') return Number(a) !== Number(b);
+    return String(a) !== String(b);
+  }).length;
+}
+function badge(n){ return n > 0 ? ` <span class="badge">${n}</span>` : ''; }
+
+function render(){
+  $('#settings').innerHTML = `
+  <div class="grpwrap">
+    <details class="grp" open><summary>页面与正文${badge(changedCount(GROUP_KEYS.page))}</summary><div class="in">
+      <label>页边距</label><div class="two margins" style="display:grid;grid-template-columns:repeat(4,1fr)">
+        ${num('margin_top')}${num('margin_bottom')}${num('margin_left')}${num('margin_right')}</div>
+      <label for="f-body_font">正文字体</label><div class="two fsrow" style="display:grid;grid-template-columns:1fr 108px">
+        ${fontSelect('body_font','body')}${sizeSelect('body_size')}</div>
+      <div class="fonthint" id="fonthint" style="display:none"></div>
+      <label for="spacingVal">行距</label><div class="two fsrow" style="display:grid;grid-template-columns:1fr 108px">
+        <input type="number" id="spacingVal" step="0.5" min="10" max="60">
+        <select id="spacingUnit">
+          <option value="pt" ${values.line_spacing_unit==='pt'?'selected':''}>固定值</option>
+          <option value="multiple" ${values.line_spacing_unit==='multiple'?'selected':''}>倍数</option>
+        </select></div>
+      <label for="f-first_line_indent_chars">首行缩进</label><div class="two">${num('first_line_indent_chars','0.5')}<span style="font-size:12px;color:var(--muted)">字符</span></div>
+    </div></details>
+
+    <details class="grp"><summary>标题与层级${badge(changedCount(GROUP_KEYS.title))}</summary><div class="in">
+      <label for="f-title_font">主标题</label><div class="two fsrow" style="display:grid;grid-template-columns:1fr 108px">
+        ${fontSelect('title_font','title')}${sizeSelect('title_size')}</div>
+      <label for="f-h1_font">一级标题</label><div class="two fsrow" style="display:grid;grid-template-columns:1fr 108px">
+        ${fontSelect('h1_font','h1')}${sizeSelect('h1_size')}</div>
+      <label for="f-h2_font">二级标题</label><div class="two fsrow" style="display:grid;grid-template-columns:1fr 108px">
+        ${fontSelect('h2_font','h2')}${sizeSelect('h2_size')}</div>
+      <label>标题后留白</label><div class="seg" data-seg="titleAfter">
+        <button data-v="0" class="${!values.enable_title_after_blank_line&&!values.enable_title_after_spacing?'on':''}">不处理</button>
+        <button data-v="blank" class="${values.enable_title_after_blank_line?'on':''}">空一行</button>
+        <button data-v="space" class="${values.enable_title_after_spacing?'on':''}">段落间距</button></div>
+    </div></details>
+
+    <details class="grp"><summary>表格与附件${badge(changedCount(GROUP_KEYS.table))}</summary><div class="in">
+      <label>表格排版</label><div class="seg" data-seg="table"><button data-v="1" class="${values.enable_table_formatting?'on':''}">启用</button>
+        <button data-v="0" class="${!values.enable_table_formatting?'on':''}">关闭</button></div>
+      <label>列宽</label><div class="seg" data-seg="colw"><button data-v="1" class="${values.table_auto_col_width?'on':''}">自动适应</button>
+        <button data-v="0" class="${!values.table_auto_col_width?'on':''}">保持原样</button></div>
+      <label>附件格式</label><div class="seg" data-seg="att"><button data-v="1" class="${values.enable_attachment_formatting?'on':''}">启用</button>
+        <button data-v="0" class="${!values.enable_attachment_formatting?'on':''}">关闭</button></div>
+    </div></details>
+
+    <details class="grp"><summary>输入处理${badge(changedCount(GROUP_KEYS.input))}</summary><div class="in">
+      <label for="f-blank_line_mode">空行处理</label><select data-k="blank_line_mode">
+        ${META.blankLineModes.map(m=>`<option ${m===values.blank_line_mode?'selected':''}>${m}</option>`).join('')}</select>
+      <label>自动编号</label><div class="seg" data-seg="num"><button data-v="1" class="${values.convert_auto_numbering?'on':''}">转文字</button>
+        <button data-v="0" class="${!values.convert_auto_numbering?'on':''}">保留</button></div>
+      <label>标点规范化</label><div class="seg" data-seg="punc"><button data-v="1" class="${values.normalize_punctuation?'on':''}">开启</button>
+        <button data-v="0" class="${!values.normalize_punctuation?'on':''}">关闭</button></div>
+      <label>强制 A4</label><div class="seg" data-seg="a4"><button data-v="1" class="${values.force_a4?'on':''}">是</button>
+        <button data-v="0" class="${!values.force_a4?'on':''}">否</button></div>
+    </div></details>
+
+  </div>`;
+  // 基础输入绑定
+  document.querySelectorAll('[data-k]').forEach(el=>{
+    el.addEventListener('change', ()=>{
+      let v = el.value;
+      if(el.type==='number') v = v===''? 0 : Number(v);
+      values[el.dataset.k] = v;
+    });
+  });
+
+  // ---- 行距：单位联动（pt ↔ 倍数）----
+  const spVal = document.getElementById('spacingVal');
+  const spUnit = document.getElementById('spacingUnit');
+  function bodyPt(){ return Number(values.body_size) || 16; }
+  function refreshSpacing(){
+    if(!spVal) return;
+    if(values.line_spacing_unit === 'multiple'){
+      spVal.value = Number(values.line_spacing_multiple ?? 1.0).toFixed(2);
+      spVal.step = '0.05'; spVal.min = '0.5'; spVal.max = '5';
+    } else {
+      spVal.value = Number(values.line_spacing ?? 28).toFixed(1);
+      spVal.step = '0.5'; spVal.min = '10'; spVal.max = '60';
+    }
+  }
+  refreshSpacing();
+  if(spUnit){
+    spUnit.addEventListener('change', ()=>{
+      const next = spUnit.value;
+      if(next === 'multiple'){
+        const pt = Number(values.line_spacing) || 28;
+        values.line_spacing_multiple = Math.round((pt / bodyPt()) * 100) / 100;
+      } else {
+        const m = Number(values.line_spacing_multiple) || 1;
+        values.line_spacing = Math.round(m * bodyPt() * 10) / 10;
+      }
+      values.line_spacing_unit = next;
+      refreshSpacing();
+    });
+  }
+  if(spVal){
+    spVal.addEventListener('change', ()=>{
+      const v = Number(spVal.value) || 0;
+      if(values.line_spacing_unit === 'multiple') values.line_spacing_multiple = v;
+      else values.line_spacing = v;
+    });
+  }
+
+  // 分段按钮
+  const segMap = {
+    titleAfter: v => { values.enable_title_after_blank_line = v==='blank';
+                       values.enable_title_after_spacing = v==='space'; },
+    table: v => values.enable_table_formatting = v==='1',
+    colw:  v => values.table_auto_col_width = v==='1',
+    att:   v => values.enable_attachment_formatting = v==='1',
+    num:   v => values.convert_auto_numbering = v==='1',
+    punc:  v => values.normalize_punctuation = v==='1',
+    a4:    v => values.force_a4 = v==='1',
+  };
+  document.querySelectorAll('[data-seg]').forEach(g=>{
+    const name = g.dataset.seg;
+    g.querySelectorAll('button').forEach(b=>{
+      b.onclick = ()=>{
+        g.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+        b.classList.add('on');
+        segMap[name](b.dataset.v);
+      };
+    });
+  });
+
+  // 高级项：按用途分组渲染
+  const adv = $('#adv');
+  const advRow = (k, info) => {
+    const v = values[k];
+    const label = (typeof ADV_LABELS !== 'undefined' && ADV_LABELS[k]) || k;
+    const tip = `title="${k}"`;
+    if(typeof ADV_ENUMS !== 'undefined' && ADV_ENUMS[k]){
+      const opts = ADV_ENUMS[k].slice();
+      if(!opts.includes(String(v))) opts.unshift(String(v));
+      return `<div class="line"><span ${tip}>${label}</span>
+        <select data-k="${k}">${opts.map(o=>`<option ${String(v)===o?'selected':''}>${o}</option>`).join('')}</select></div>`;
+    }
+    if(info.type==='bool'){
+      return `<div class="line"><span ${tip}>${label}</span>
+        <select data-k="${k}"><option value="true" ${v?'selected':''}>是</option>
+        <option value="false" ${!v?'selected':''}>否</option></select></div>`;
+    }
+    if(info.type==='number'){
+      return `<div class="line"><span ${tip}>${label}</span><input type="number" step="0.1" data-k="${k}" value="${v}"></div>`;
+    }
+    return `<div class="line"><span ${tip}>${label}</span><input type="text" data-k="${k}" value="${v ?? ''}"></div>`;
+  };
+
+  const usedKeys = new Set(ADV_GROUPS.flatMap(g => g.keys));
+  const leftovers = Object.keys(META.advanced).filter(k => !usedKeys.has(k));
+  const groups = ADV_GROUPS.map(g => ({ title: g.title, keys: g.keys.filter(k => k in META.advanced) }))
+                           .filter(g => g.keys.length);
+  if(leftovers.length) groups.push({ title: '其他', keys: leftovers });
+
+  adv.innerHTML = groups.map(g => {
+    const n = changedCount(g.keys);
+    const rows = g.keys.map(k => advRow(k, META.advanced[k])).join('');
+    return `<div class="advgroup">
+      <div class="advgh">${g.title}<span class="advcount">${g.keys.length} 项</span>${badge(n)}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+  adv.querySelectorAll('[data-k]').forEach(el=>{
+    el.addEventListener('change', ()=>{
+      let v = el.value;
+      if(el.value==='true') v = true; else if(el.value==='false') v = false;
+      else if(el.type==='number') v = v===''?0:Number(v);
+      values[el.dataset.k] = v;
+    });
+  });
+
+  updateFontHint();
+
+  // 高级项：总数与已改动数徽标
+  const advKeys = Object.keys(META.advanced);
+  const advN = changedCount(advKeys);
+  const advTotalEl = document.getElementById('advTotal');
+  if(advTotalEl) advTotalEl.textContent = advKeys.length;
+  const advBadgeEl = document.getElementById('advBadge');
+  if(advBadgeEl){
+    advBadgeEl.textContent = advN ? String(advN) : '';
+    advBadgeEl.classList.toggle('on', advN > 0);
+  }
+}
+
+/* 当前选中的字体里，有哪些本机没装 */
+function updateFontHint(){
+  const el = document.getElementById('fonthint');
+  if(!el) return;
+  const keys = ['body_font','title_font','h1_font','h2_font','subtitle_font'];
+  const miss = [...new Set(keys.map(k => values[k]).filter(n => n && !fontInstalled(n)))];
+  if(miss.length){
+    el.style.display = 'block';
+    el.textContent = `⚠ 本机未安装：${miss.join('、')}。Word 会自动替换成相近字体，实际排版外观可能与预期不同。`;
+  }else{
+    el.style.display = 'none';
+    el.textContent = '';
+  }
+}
+
+/* ---------- 文件列表 ---------- */
+function renderFiles(){
+  const list = $('#list');
+  list.querySelectorAll('.row').forEach(r=>r.remove());
+  $('#empty').style.display = files.length ? 'none' : 'block';
+  $('#cnt').textContent = files.length + ' 个文件';
+  files.forEach(f=>{
+    const d = document.createElement('div');
+    d.className='row'; d.dataset.id = f.id;
+    d.innerHTML = `<div class="ico">${ext(f.name)}</div>
+      <div class="nm" title="${f.name}">${f.name}</div>
+      <div class="sz">${fmtKB(f.size)}</div>
+      <span class="chip wait">待排版</span><span class="x" title="移除">×</span>`;
+    d.querySelector('.x').onclick = ()=>{ const i=files.findIndex(x=>x.id===f.id); if(i>=0) files.splice(i,1); renderFiles(); };
+    list.appendChild(d);
+  });
+}
+function addFiles(fileList){
+  [...fileList].forEach(f=>{
+    if(!ALLOWED.test(f.name)) return;
+    if(files.some(x=>x.name===f.name && x.size===f.size)) return;
+    files.push({id: Math.random().toString(36).slice(2), file:f, name:f.name, size:f.size});
+  });
+  renderFiles();
+}
+
+/* ---------- 拖拽 / 选择 ---------- */
+const ALLOWED = /\.(docx?|wps|txt|md)$/i;
+
+/* 递归读取拖入的文件夹（DataTransferItem.webkitGetAsEntry） */
+async function collectFromItems(items){
+  const out = [];
+  const readAll = async (reader) => {
+    const all = [];
+    while(true){
+      const batch = await new Promise((res, rej)=> reader.readEntries(res, rej));
+      if(!batch.length) break;
+      for(const b of batch) all.push(b);
+    }
+    return all;
+  };
+  const walk = async (entry, prefix) => {
+    if(!entry) return;
+    if(entry.isFile){
+      const file = await new Promise((res, rej)=> entry.file(res, rej));
+      if(ALLOWED.test(file.name)){
+        out.push(prefix ? new File([file], prefix + file.name, {type:file.type, lastModified:file.lastModified}) : file);
+      }
+    } else if(entry.isDirectory){
+      const children = await readAll(entry.createReader());
+      for(const ch of children){ await walk(ch, prefix + entry.name + '/'); }
+    }
+  };
+  for(const it of items){
+    const entry = it.webkitGetAsEntry ? it.webkitGetAsEntry() : null;
+    if(entry){ await walk(entry, ''); }
+    else if(it.getAsFile){
+      const f = it.getAsFile();
+      if(f && ALLOWED.test(f.name)) out.push(f);
+    }
+  }
+  return out;
+}
+
+const drop = $('#drop');
+drop.onclick = ()=> $('#picker').click();
+$('#picker').onchange = e => { addFiles(e.target.files); e.target.value=''; };
+$('#pickDir').onclick = e => { e.stopPropagation(); $('#dirpicker').click(); };
+const pickDir2 = document.getElementById('pickDir2');
+if(pickDir2) pickDir2.onclick = e => { e.stopPropagation(); $('#dirpicker').click(); };
+$('#dirpicker').onchange = e => {
+  const fs = [...e.target.files].filter(f => ALLOWED.test(f.name));
+  addFiles(fs);
+  log(`从文件夹读取：${fs.length} 个可处理文件`);
+  e.target.value='';
+};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop', async e => {
+  const items = e.dataTransfer.items;
+  if(items && items.length && items[0].webkitGetAsEntry){
+    log('正在读取拖入内容…');
+    try{
+      const fs = await collectFromItems(items);
+      addFiles(fs);
+      log(`读取完成：${fs.length} 个可处理文件`);
+    }catch(err){
+      log('读取失败：' + err.message);
+    }
+  }else if(e.dataTransfer.files){
+    addFiles(e.dataTransfer.files);
+  }
+});
+$('#clear').onclick = ()=>{ files.length=0; renderFiles(); log('已清空列表。'); };
+
+/* ---------- 执行 ---------- */
+const readB64 = file => new Promise((res,rej)=>{
+  const r = new FileReader();
+  r.onload = ()=> res(String(r.result).split(',')[1] || '');
+  r.onerror = rej; r.readAsDataURL(file);
+});
+
+document.addEventListener('change', ()=>persistConfig());
+
+/* 在文件行下方插入错误详情（可折叠） */
+function showErr(row, text){
+  if(!row) return;
+  clearErr(row);
+  const box = document.createElement('details');
+  box.className = 'errbox';
+  const sum = document.createElement('summary');
+  sum.textContent = '错误详情';
+  const pre = document.createElement('pre');
+  pre.textContent = text || '(无更多信息)';
+  box.appendChild(sum);
+  box.appendChild(pre);
+  row.insertAdjacentElement('afterend', box);
+  sum.click();   // 默认展开
+}
+function clearErr(row){
+  if(!row) return;
+  const next = row.nextElementSibling;
+  if(next && next.classList && next.classList.contains('errbox')) next.remove();
+}
+
+async function run(){
+  if(busy) return;
+  if(!files.length){ log('没有待处理的文件。'); return; }
+  busy = true; cancelReq = false;
+  setRunButton(true);
+  const outdir = $('#outdir').value.trim();
+  let done = 0, fail = 0, stopped = 0;
+
+  for(const f of files){
+    if(cancelReq){
+      const row = document.querySelector(`.row[data-id="${f.id}"]`);
+      const chip = row && row.querySelector('.chip');
+      if(chip){ chip.className='chip wait'; chip.textContent='已跳过'; }
+      stopped++;
+      continue;
+    }
+    const row = document.querySelector(`.row[data-id="${f.id}"]`);
+    const chip = row && row.querySelector('.chip');
+    clearErr(row);
+    if(chip){ chip.className='chip run'; chip.textContent='排版中'; }
+    log('处理 ' + f.name + ' …');
+    try{
+      const data = await readB64(f.file);
+      abortCtl = new AbortController();
+      const r = await fetch('/api/format', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ name:f.name, data, config:values, outputDir:outdir }),
+        signal: abortCtl.signal
+      });
+      const j = await r.json();
+      if(j.ok){
+        done++;
+        if(chip){ chip.className='chip done'; chip.textContent='完成'; }
+        log(`完成 ${f.name} → ${j.output}`);
+      }else{
+        fail++;
+        if(chip){ chip.className='chip fail'; chip.textContent='失败'; }
+        log(`失败 ${f.name}：${j.error}`);
+        let txt = j.error || '未知错误';
+        if(j.detail) txt += '\n\n' + j.detail;
+        if(j.logs && j.logs.length) txt += '\n\n--- 处理日志 ---\n' + j.logs.join('\n');
+        showErr(row, txt);
+      }
+    }catch(err){
+      if(err && err.name === 'AbortError'){
+        if(chip){ chip.className='chip wait'; chip.textContent='已取消'; }
+        cancelReq = true;
+        log(`已取消：${f.name}（该文件可能已在后台处理完，请以输出目录为准）`);
+      }else{
+        fail++;
+        if(chip){ chip.className='chip fail'; chip.textContent='失败'; }
+        log(`失败 ${f.name}：${err.message}`);
+        showErr(row, (err && err.stack) ? err.stack : String(err));
+      }
+    } finally {
+      abortCtl = null;
+    }
+    $('#prog').style.width = Math.round(((done+fail)/files.length)*100) + '%';
+  }
+
+  if(cancelReq){
+    log(`已取消：成功 ${done}，失败 ${fail}，跳过 ${stopped}。`);
+  }else{
+    log(`本轮结束：成功 ${done}，失败 ${fail}。输出目录：${outdir}`);
+  }
+  busy = false; setRunButton(false);
+}
+
+function setRunButton(running){
+  const btn = $('#run');
+  btn.textContent = running ? '取消' : '开始排版';
+  btn.classList.toggle('danger', !!running);
+}
+
+$('#run').onclick = ()=>{
+  if(busy){
+    cancelReq = true;
+    if(abortCtl){ try{ abortCtl.abort(); }catch(e){} }
+    log('正在取消…');
+  }else{
+    run();
+  }
+};
+
+/* 快捷键：Ctrl+Enter 开始/取消，Esc 取消 */
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){
+    e.preventDefault();
+    $('#run').click();
+  } else if(e.key === 'Escape' && busy){
+    e.preventDefault();
+    $('#run').click();
+  }
+});
+$('#openDir').onclick = async ()=>{
+  const path = $('#outdir').value.trim();
+  try{
+    const r = await fetch('/api/open-dir',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({path})});
+    const j = await r.json(); if(!j.ok) log('打开目录失败：'+j.error);
+  }catch(e){ log('打开目录失败：'+e.message); }
+};
+
+/* ---------- 预设 ---------- */
+$('#preset').onchange = e=>{
+  const name = e.target.value;
+  const over = META.presets[name] || {};
+  Object.assign(values, META.defaults, over);
+  render(); persistConfig(); log('已应用方案：' + name);
+};
+$('#reset').onclick = ()=>{ Object.assign(values, META.defaults); render(); clearConfig(); log('已恢复默认配置，并清除记忆。'); };
+$('#saveCfg').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(values,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'wfp_config.json'; a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+/* ---------- 拖拽区高度：拖动分隔条 ---------- */
+(function initDropSplitter(){
+  const sp = document.getElementById('splitDrop');
+  const dropEl = document.getElementById('drop');
+  if(!sp || !dropEl) return;
+
+  const KEY = 'wfp.droph';
+  const MIN_H = 116, MAX_H = 340;
+
+  function maxDropH(){
+    const leftEl = document.querySelector('.left');
+    const logEl = document.getElementById('log');
+    if(!leftEl || !logEl) return MAX_H;
+    const reserve = 250;   // h2 60 + 日志头 37 + 列表保底 110
+    return Math.max(MIN_H, Math.min(MAX_H, leftEl.clientHeight - logEl.getBoundingClientRect().height - reserve));
+  }
+  function apply(h){
+    dropEl.style.setProperty('--droph', Math.max(MIN_H, Math.min(Math.round(h), maxDropH())) + 'px');
+  }
+  try{
+    const saved = Number(localStorage.getItem(KEY) || 0);
+    if(saved >= MIN_H) apply(saved);
+  }catch(e){}
+
+  let dragging = false, startY = 0, startH = 0;
+  sp.addEventListener('mousedown', e => {
+    dragging = true; startY = e.clientY; startH = dropEl.getBoundingClientRect().height;
+    sp.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if(!dragging) return;
+    apply(startH + (e.clientY - startY));
+  });
+  window.addEventListener('mouseup', () => {
+    if(!dragging) return;
+    dragging = false;
+    sp.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    try{ localStorage.setItem(KEY, String(Math.round(dropEl.getBoundingClientRect().height))); }catch(e){}
+  });
+  sp.addEventListener('dblclick', () => {
+    dropEl.style.removeProperty('--droph');
+    try{ localStorage.removeItem(KEY); }catch(e){}
+    log('已恢复默认拖拽区高度。');
+  });
+})();
+
+/* ---------- 左右分栏：拖动分隔条 ---------- */
+(function initSplitter(){
+  const sp = document.getElementById('splitter');
+  const mainEl = document.querySelector('main');
+  const rightEl = document.querySelector('.right');
+  if(!sp || !mainEl || !rightEl) return;
+
+  const KEY = 'wfp.rightw';
+  const MIN_R = 300;   // 右栏最小
+  const MIN_L = 360;   // 左栏最小
+
+  function clamp(w){
+    const total = mainEl.clientWidth;
+    const max = Math.max(MIN_R, total - MIN_L - 14);
+    return Math.max(MIN_R, Math.min(Math.round(w), max));
+  }
+  function apply(w){ mainEl.style.setProperty('--rightw', clamp(w) + 'px'); }
+
+  try{
+    const saved = Number(localStorage.getItem(KEY) || 0);
+    if(saved >= MIN_R) apply(saved);
+  }catch(e){}
+
+  let dragging = false, startX = 0, startW = 0;
+  sp.addEventListener('mousedown', e => {
+    dragging = true; startX = e.clientX; startW = rightEl.getBoundingClientRect().width;
+    sp.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if(!dragging) return;
+    apply(startW - (e.clientX - startX));
+  });
+  window.addEventListener('mouseup', () => {
+    if(!dragging) return;
+    dragging = false;
+    sp.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    try{ localStorage.setItem(KEY, String(Math.round(rightEl.getBoundingClientRect().width))); }catch(e){}
+  });
+  sp.addEventListener('dblclick', () => {
+    mainEl.style.removeProperty('--rightw');
+    try{ localStorage.removeItem(KEY); }catch(e){}
+    log('已恢复默认栏宽。');
+  });
+  window.addEventListener('resize', () => {
+    const w = rightEl.getBoundingClientRect().width;
+    if(w > 0) apply(w);
+  });
+})();
+
+/* ---------- 高级设置抽屉 ---------- */
+(function initAdvDrawer(){
+  const drawer = document.getElementById('drawer');
+  const mask = document.getElementById('drawerMask');
+  const openBtn = document.getElementById('openAdv');
+  const closeBtn = document.getElementById('drawerClose');
+  const resetBtn = document.getElementById('advReset');
+  if(!drawer || !mask || !openBtn) return;
+  drawer.dataset.ready = '1';   // 供调试确认已绑定
+
+  function openDrawer(){
+    drawer.classList.add('on');
+    mask.classList.add('on');
+    drawer.setAttribute('aria-hidden','false');
+    if(closeBtn) closeBtn.focus();
+  }
+  function closeDrawer(){
+    drawer.classList.remove('on');
+    mask.classList.remove('on');
+    drawer.setAttribute('aria-hidden','true');
+    openBtn.focus();
+  }
+  openBtn.onclick = openDrawer;
+  if(closeBtn) closeBtn.onclick = closeDrawer;
+  mask.onclick = closeDrawer;
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && drawer.classList.contains('on')){
+      e.stopPropagation();
+      closeDrawer();
+    }
+  }, true);
+  if(resetBtn) resetBtn.onclick = () => {
+    Object.keys(META.advanced).forEach(k => { values[k] = META.defaults[k]; });
+    render(); persistConfig();
+    log('已恢复高级项默认值。');
+  };
+})();
+
+/* ---------- 关于抽屉 ---------- */
+(function initAbout(){
+  const drawer = document.getElementById('aboutDrawer');
+  const mask = document.getElementById('aboutMask');
+  const openBtn = document.getElementById('openAbout');
+  const closeBtn = document.getElementById('aboutClose');
+  if(!drawer || !mask || !openBtn) return;
+  drawer.dataset.ready = '1';
+
+  const open = () => {
+    drawer.classList.add('on');
+    mask.classList.add('on');
+    drawer.setAttribute('aria-hidden','false');
+    drawer.querySelector('.drawerbody').scrollTop = 0;
+    if(closeBtn) closeBtn.focus();
+  };
+  const close = () => {
+    drawer.classList.remove('on');
+    mask.classList.remove('on');
+    drawer.setAttribute('aria-hidden','true');
+    openBtn.focus();
+  };
+  openBtn.onclick = open;
+  const sig = document.getElementById('sig');
+  if(sig) sig.onclick = e => { e.preventDefault(); open(); };
+  if(closeBtn) closeBtn.onclick = close;
+  mask.onclick = close;
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && drawer.classList.contains('on')){
+      e.stopPropagation();
+      close();
+    }
+  }, true);
+})();
+
+/* ---------- 抽屉宽度：拖动左边缘 ---------- */
+(function initDrawerResize(){
+  const drawer = document.getElementById('drawer');
+  const handle = document.getElementById('drawerHandle');
+  if(!drawer || !handle) return;
+
+  const KEY = 'wfp.drawerw';
+  const MIN_W = 380;
+  const maxW = () => Math.min(window.innerWidth * 0.96, window.innerWidth - 80);
+  const clamp = w => Math.max(MIN_W, Math.min(Math.round(w), Math.round(maxW())));
+  const apply = w => drawer.style.setProperty('--drawerw', clamp(w) + 'px');
+
+  try{
+    const saved = Number(localStorage.getItem(KEY) || 0);
+    if(saved >= MIN_W) apply(saved);
+  }catch(e){}
+
+  let dragging = false, startX = 0, startW = 0;
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startX = e.clientX;
+    startW = drawer.getBoundingClientRect().width;
+    handle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if(!dragging) return;
+    apply(startW - (e.clientX - startX));
+  });
+  window.addEventListener('mouseup', () => {
+    if(!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    try{ localStorage.setItem(KEY, String(Math.round(drawer.getBoundingClientRect().width))); }catch(e){}
+  });
+  handle.addEventListener('dblclick', () => {
+    drawer.style.removeProperty('--drawerw');
+    try{ localStorage.removeItem(KEY); }catch(e){}
+    log('已恢复抽屉默认宽度。');
+  });
+  window.addEventListener('resize', () => {
+    if(!drawer.classList.contains('on')) return;
+    const w = drawer.getBoundingClientRect().width;
+    if(w > 0) apply(w);
+  });
+})();
+
+/* ---------- 左栏高度兜底：窗口变小/记忆值过大时自动压缩 ---------- */
+(function initLeftReclamp(){
+  const reserve = 250;   // h2 60 + 日志头 37 + 列表保底 110
+
+  function reclamp(){
+    const leftEl = document.querySelector('.left');
+    const dropEl = document.getElementById('drop');
+    const logEl = document.getElementById('log');
+    if(!leftEl || !dropEl || !logEl) return;
+    const leftH = leftEl.clientHeight;
+    if(leftH <= 0) return;
+
+    let dropH = dropEl.getBoundingClientRect().height;
+    let logH = logEl.getBoundingClientRect().height;
+    const total = dropH + logH + reserve;
+    if(total <= leftH) return;
+
+    let over = total - leftH;
+    // 先压日志（下限 60）
+    const newLog = Math.max(60, logH - over);
+    over -= (logH - newLog);
+    logEl.style.setProperty('--logh', Math.round(newLog) + 'px');
+    // 还不够再压拖拽区（下限 116）
+    if(over > 0){
+      const newDrop = Math.max(116, dropH - over);
+      dropEl.style.setProperty('--droph', Math.round(newDrop) + 'px');
+    }
+  }
+
+  window.addEventListener('resize', reclamp);
+  window.addEventListener('DOMContentLoaded', reclamp);
+  setTimeout(reclamp, 60);
+  setTimeout(reclamp, 400);
+})();
+
+/* ---------- 主题切换：跟随系统 / 浅色 / 深色 ---------- */
+(function initTheme(){
+  const btn = document.getElementById('themeBtn');
+  if(!btn) return;
+  const MODES = ['auto','light','dark'];
+  const LABEL = { auto:'跟随系统', light:'浅色', dark:'深色' };
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  let mode = 'auto';
+  try{ mode = localStorage.getItem('wfp.theme') || 'auto'; }catch(e){}
+  if(!MODES.includes(mode)) mode = 'auto';
+
+  function apply(m){
+    const sys = mq.matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme-mode', m);
+    document.documentElement.setAttribute('data-theme', m === 'auto' ? sys : m);
+    btn.textContent = LABEL[m];
+    try{ localStorage.setItem('wfp.theme', m); }catch(e){}
+  }
+  apply(mode);
+  btn.onclick = ()=>{ mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length]; apply(mode); };
+  mq.addEventListener('change', ()=>{
+    if((localStorage.getItem('wfp.theme') || 'auto') === 'auto') apply('auto');
+  });
+})();
+
+boot().then(()=>{ $('#outdir').value = (META && META.defaultOut) || ''; });
+</script>
+<!-- 高级设置抽屉 -->
+
+
+
+</body>
+</html>

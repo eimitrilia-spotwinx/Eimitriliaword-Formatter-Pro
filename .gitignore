@@ -14,3 +14,23 @@ build/
 dist/
 *.spec
 release/
+# ---- 本项目新增（发布前必须忽略）----
+# 本地运行/打包环境
+_env/
+_build/
+.venv-build*/
+
+# 运行时产物
+tmp/
+out/
+window-profile/
+version_info.txt
+app.log
+*.log
+
+# 测试与调试样本
+test/
+
+# 本机构建产物（已在上方忽略 dist/ build/，这里再明确一次）
+dist/
+build/
