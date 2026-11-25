@@ -295,3 +295,98 @@ curl.exe -sS http://127.0.0.1:8878/api/meta
 | FileVersion / ProductVersion | `__version__` 原样；数字段自动换算为 `(a, b, c, d)` |
 
 例：`2.7.9-eimitrilia.1` → 数字段 `(2, 7, 9, 1)`。
+
+---
+
+## 十、发布到 GitHub（2026-11-25 首次发布完成）
+
+| 项 | 值 |
+|---|---|
+| 仓库 | https://github.com/eimitrilia-spotwinx/Eimitriliaword-Formatter-Pro |
+| 可见性 | Public |
+| 默认分支 | `main` |
+| 首次 Release | `v2.7.9-eimitrilia.1`（附 win64 zip，52.7 MB） |
+| 提交数 | 69（保留上游完整历史） |
+
+### 10.1 发布前必查
+
+1. **`.gitignore` 必须挡住**：`_env/`、`_build/`、`tmp/`、`out/`、`window-profile/`、
+   `version_info.txt`、`*.log`、`test/`、`dist/`、`build/`。
+   其中 `window-profile/` 是 862 MB 的 Edge 用户数据目录（含 cookies），**绝不能提交**。
+2. **本机绝对路径**：`BUILD-NOTES.md` 与 `assets\*.ps1` 里出现过 `D:\...\wfp-webui`
+   和 `C:\Users\<用户名>`，发布前统一替换为 `<项目目录>` / `<用户名>`。
+3. **LICENSE**：保留上游 `Copyright (c) 2025 cwyalpha`，追加
+   `Modifications Copyright (c) 2026 Eimitrilia Spotwinx`。MIT 要求保留原声明。
+4. **README**：仓库里原来的 README 是上游 Tkinter 版，必须换成本项目内容，
+   并在开头注明基于上游项目。
+5. **推送前** `git status` 应只剩源码与文档，且总体积在 2 MB 量级。
+
+### 10.2 推送必须走 SSH（HTTPS 会被重置）
+
+实测：向 `https://github.com/...` 执行 `git push` 稳定失败：
+
+```
+fatal: unable to access '...': Recv failure: Connection was reset
+```
+
+加 `http.version=HTTP/1.1`、放大 `http.postBuffer` 均无效。
+**`git ls-remote`（读）可以，`push`（写）被重置。**
+
+可行方案：**SSH + 仓库部署密钥（写权限）**。一次性配置：
+
+```powershell
+# 1. 生成专用密钥（不放进 ~/.ssh，避免污染日常 SSH）
+ssh-keygen -t ed25519 -f "<工作区>\downloads\gh-cli\id_ed25519" -N '""'
+
+# 2. 加为仓库部署密钥（read_only=false 才有写权限）
+#    注意：JSON 必须是 UTF-8 无 BOM，否则 gh 报 "Problems parsing JSON"
+$json = @{ title='wfp-publish'; key=(Get-Content id_ed25519.pub -Raw).Trim(); read_only=$false } |
+        ConvertTo-Json -Compress
+[IO.File]::WriteAllText("key.json", $json, [Text.UTF8Encoding]::new($false))
+gh api "repos/<owner>/<repo>/keys" --method POST --input key.json
+
+# 3. 只改 push URL，fetch 仍走镜像
+git remote set-url --push origin "git@github.com:<owner>/<repo>.git"
+```
+
+推送：
+
+```powershell
+$env:GIT_SSH_COMMAND = 'ssh -i "<工作区>\downloads\gh-cli\id_ed25519" -o StrictHostKeyChecking=no -o UserKnownHostsFile=NUL -o IdentitiesOnly=yes'
+git push -u origin main --tags
+```
+
+### 10.3 发 Release
+
+```powershell
+cd <项目目录>
+Compress-Archive -Path "dist\Eimitriliaword Formatter Pro\*" `
+                 -DestinationPath "release\Eimitriliaword-Formatter-Pro-v<版本>-win64.zip"
+
+gh release create "v<版本>" "release\...zip" --title "v<版本>" --notes-file release\RELEASE_NOTES.md
+```
+
+### 10.4 踩过的坑（发布相关 5 条）
+
+| # | 现象 | 原因 | 处理 |
+|---|---|---|---|
+| 1 | `winget install` 报 `InternetOpenUrl() failed 0x80072efd` | winget 源不可达 | 改从 GitHub Release 下载 gh，走 gh-proxy，并用官方 checksums.txt 校验 SHA256 |
+| 2 | `gh` 报 `mkdir C:\Users\<用户>\AppData\Roaming\GitHub CLI: Access is denied` | 无法写用户目录 | 设 `GH_CONFIG_DIR` 指向工作区目录 |
+| 3 | `git push` 报 `Connection was reset` | HTTPS 写操作被拦 | 改用 SSH 部署密钥（见 10.2） |
+| 4 | `remote unpack failed: index-pack failed / did not receive expected object` | 仓库是 **shallow clone**，缺历史对象 | `git fetch --unshallow <上游完整 URL>` 补齐后再推 |
+| 5 | 全局配置 `url.https://gh-proxy.com/https://github.com/.insteadOf` 把地址改写 | 日常下载走镜像需要它 | push 用 SSH URL（不受改写影响）；若必须用 HTTPS，推送前临时移除、推后恢复 |
+
+补充两个小坑：
+
+- `gh api --jq '...'` 在 PowerShell 里引号很容易被吃掉，**改用 `ConvertFrom-Json`**；
+- `Set-Content -Encoding UTF8` 会写 BOM，**传给 gh 的 JSON 要用 `[IO.File]::WriteAllText` + `UTF8Encoding($false)`**。
+
+### 10.5 下次发新版的清单
+
+1. 改 `wfp_version.py` 的后缀数字（如 `2.7.9-eimitrilia.2`）
+2. `powershell -ExecutionPolicy Bypass -File .\build.ps1`
+3. `git add -A; git commit -m "chore: release v<版本>"`
+4. `git push origin main --tags`（SSH，见 10.2）
+5. `git tag -a v<版本> -m "..."` → 再 push 标签
+6. 打 zip → `gh release create`（见 10.3）
+7. 打开仓库页面确认：文件树、README 渲染、Release 资产可下载
